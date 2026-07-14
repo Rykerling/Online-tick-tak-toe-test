@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realtime Multiplayer Tic Tac Toe</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons for nice assets -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .neon-glow-x {
+            text-shadow: 0 0 10px rgba(45, 212, 191, 0.6), 0 0 20px rgba(45, 212, 191, 0.3);
+        }
+        .neon-glow-o {
+            text-shadow: 0 0 10px rgba(244, 63, 94, 0.6), 0 0 20px rgba(244, 63, 94, 0.3);
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col justify-between font-sans selection:bg-teal-500/30 selection:text-teal-200">
+
+    <!-- Header / Navigation -->
+    <header class="border-b border-slate-800 bg-slate-950/60 backdrop-blur-md px-6 py-4">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="h-10 w-10 rounded-xl bg-gradient-to-tr from-teal-500 to-rose-500 flex items-center justify-center shadow-lg shadow-teal-500/10">
+                    <i class="fa-solid fa-gamepad text-xl text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-none tracking-tight">TicTacToe <span class="text-teal-400 font-semibold text-xs px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20">Live</span></h1>
+                    <p class="text-xs text-slate-400 mt-0.5">Realtime Multiplayer Demo</p>
+                </div>
+            </div>
+            <div id="connectionStatus" class="flex items-center gap-2 text-xs bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700">
+                <span class="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" id="statusDot"></span>
+                <span id="statusText" class="font-medium text-slate-300">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex items-center justify-center p-4">
+        <div class="w-full max-w-md bg-slate-950/40 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-2xl backdrop-blur-lg relative overflow-hidden">
+            
+            <!-- Floating backgrounds for aesthetic flare -->
+            <div class="absolute -top-12 -left-12 w-32 h-32 bg-teal-500/5 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-12 -right-12 w-32 h-32 bg-rose-500/5 rounded-full blur-3xl"></div>
+
+            <!-- Toast / Custom Notification overlay (replaces standard alerts) -->
+            <div id="toast" class="absolute top-4 left-1/2 -translate-x-1/2 transform bg-slate-800 border border-slate-700 text-slate-100 text-xs px-4 py-2 rounded-lg shadow-xl opacity-0 translate-y-[-10px] pointer-events-none transition-all duration-300 flex items-center gap-2 z-50">
+                <i class="fa-solid fa-circle-info text-teal-400" id="toastIcon"></i>
+                <span id="toastMessage">Notification details here</span>
+            </div>
+
+            <!-- SCREEN 1: LOBBY (Create / Join Game) -->
+            <div id="lobbyScreen" class="space-y-6">
+                <div class="text-center space-y-2">
+                    <h2 class="text-2xl font-bold text-slate-100">Welcome, Challenger!</h2>
+                    <p class="text-slate-400 text-sm">Create a new game and text the link to a friend to instantly start playing.</p>
+                </div>
+
+                <div class="space-y-3">
+                    <button id="btnCreateGame" class="w-full bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-teal-500/10 transition-all duration-200 transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-plus"></i> Create New Private Game
+                    </button>
+                    
+                    <div class="relative flex py-2 items-center">
+                        <div class="flex-grow border-t border-slate-800"></div>
+                        <span class="flex-shrink mx-4 text-slate-500 text-xs font-semibold uppercase tracking-wider">or join by code</span>
+                        <div class="flex-grow border-t border-slate-800"></div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <input type="text" id="joinRoomCode" placeholder="Enter 5-digit room code" maxlength="5" class="bg-slate-900 border border-slate-800 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 text-sm flex-grow tracking-widest uppercase text-center font-mono">
+                        <button id="btnJoinGame" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 font-semibold px-5 rounded-xl transition-all duration-200">
+                            Join
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCREEN 2: GAMEPLAY -->
+            <div id="gameScreen" class="hidden space-y-6">
+                
+                <!-- Room Link sharing block -->
+                <div id="inviteBox" class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-slate-400 font-medium">Room Code: <strong class="text-teal-400 font-mono tracking-wider text-sm uppercase" id="displayRoomCode">-----</strong></span>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-amber-400 font-medium animate-pulse" id="opponentStatus">Waiting for Player 2...</span>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="inviteLink" readonly class="bg-slate-950 text-slate-400 rounded-lg px-3 py-2 text-xs flex-grow font-mono border border-slate-800 select-all" value="">
+                        <button id="btnCopyLink" class="bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold px-4 py-2 rounded-lg text-xs transition-all duration-200 flex items-center gap-1.5 shrink-0">
+                            <i class="fa-solid fa-copy"></i> Copy Link
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Match Status Panel -->
+                <div class="flex items-center justify-between px-2">
+                    <div class="flex items-center gap-3">
+                        <div class="text-center">
+                            <div class="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">Your Role</div>
+                            <div class="text-sm font-bold flex items-center justify-center gap-1 mt-0.5" id="userRoleDisplay">
+                                <span class="text-slate-400">---</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center h-12 flex flex-col justify-center">
+                        <div id="turnIndicator" class="text-sm font-bold bg-slate-900 border border-slate-800 px-4 py-1.5 rounded-full">
+                            Waiting for match...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tic Tac Toe Grid -->
+                <div class="grid grid-cols-3 gap-3 aspect-square bg-slate-900/40 p-3 rounded-2xl border border-slate-800">
+                    <button data-index="0" class="game-cell aspect-square rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800/80 text-4xl md:text-5xl font-black transition-all duration-150 transform hover:scale-[1.02] focus:outline-none flex items-center justify-center disabled:opacity-100 disabled:cursor-not-allowed"></button>
+                    <button data-index="1" class="game-cell aspect-square rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800/80 text-4xl md:text-5xl font-black transition-all duration-150 transform hover:scale-[1.02] focus:outline-none flex items-center justify-center disabled:opacity-100 disabled:cursor-not-allowed"></button>
+                    <button data-index="2" class="game-cell aspect-square rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800/80 text-4xl md:text-5xl font-black transition-all duration-150 transform hover:scale-[1.02] focus:outline-none flex items-center justify-center disabled:opacity-100 disabled:cursor-not-allowed"></button>
+                    
+                    <button data-index="3" class="game-cell aspect-square rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800/80 text-4xl md:text-5xl font-black transition-all duration-150 transform hover:scale-[1.02] focus:outline-none flex items-center justify-center disabled:opacity-100 disabled:cursor-not-allowed"></button>
+                    <button data-index="4" class="game-cell aspect-square rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800/80 text-4xl md:text-5xl font-black transition-all duration-150 transform hover:scale-[1.02] focus:outline-none flex items-center justify-center disabled:opacity-100 disabled:cursor-not-allowed"></button>
+                    <button data-index="5" class="game-cell aspect-square rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800/80 text-4xl md:text-5xl font-black transition-all duration-150 transform hover:scale-[1.02] focus:outline-none flex items-center justify-center disabled:opacity-100 disabled:cursor-not-allowed"></button>
+                    
+                    <button data-index="6" class="game-cell aspect-square rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800/80 text-4xl md:text-5xl font-black transition-all duration-150 transform hover:scale-[1.02] focus:outline-none flex items-center justify-center disabled:opacity-100 disabled:cursor-not-allowed"></button>
+                    <button data-index="7" class="game-cell aspect-square rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800/80 text-4xl md:text-5xl font-black transition-all duration-150 transform hover:scale-[1.02] focus:outline-none flex items-center justify-center disabled:opacity-100 disabled:cursor-not-allowed"></button>
+                    <button data-index="8" class="game-cell aspect-square rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800/80 text-4xl md:text-5xl font-black transition-all duration-150 transform hover:scale-[1.02] focus:outline-none flex items-center justify-center disabled:opacity-100 disabled:cursor-not-allowed"></button>
+                </div>
+
+                <!-- Match Controllers / Options -->
+                <div class="flex gap-3 pt-2">
+                    <button id="btnReset" class="flex-grow bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 font-semibold py-3 px-4 rounded-xl transition-all duration-200 text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-left"></i> Reset Match
+                    </button>
+                    <button id="btnLeave" class="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 font-semibold py-3 px-4 rounded-xl transition-all duration-200 text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-sign-out"></i> Leave Room
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center text-slate-500 text-xs py-4 border-t border-slate-800/60 bg-slate-950/20">
+        <p>Built with Tailwind CSS & Realtime Cloud Sync.</p>
+    </footer>
+
+    <!-- Firebase SDK Modular Scripts (V11+) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Your custom real Firebase Project keys mapped to game config
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+            ? JSON.parse(__firebase_config) 
+            : {
+                apiKey: "AIzaSyDiRe1-42JBP0X0MR-LTsdvWhRpaczQ-Ns",
+                authDomain: "basictictactoemultiplayerdemo.firebaseapp.com",
+                projectId: "basictictactoemultiplayerdemo",
+                storageBucket: "basictictactoemultiplayerdemo.firebasestorage.app",
+                messagingSenderId: "176873454403",
+                appId: "1:176873454403:web:f54f81081ffb0573d1cdf6",
+                measurementId: "G-DJRN0NZ852"
+            };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'tic-tac-toe-mp';
+
+        // Local state
+        let currentUser = null;
+        let currentRoomId = null;
+        let role = null; // 'X' (host), 'O' (joiner), or 'spectator'
+        let roomSubscription = null;
+
+        // UI Element References
+        const lobbyScreen = document.getElementById('lobbyScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const btnCreateGame = document.getElementById('btnCreateGame');
+        const btnJoinGame = document.getElementById('btnJoinGame');
+        const joinRoomCode = document.getElementById('joinRoomCode');
+        const displayRoomCode = document.getElementById('displayRoomCode');
+        const opponentStatus = document.getElementById('opponentStatus');
+        const inviteLink = document.getElementById('inviteLink');
+        const btnCopyLink = document.getElementById('btnCopyLink');
+        const userRoleDisplay = document.getElementById('userRoleDisplay');
+        const turnIndicator = document.getElementById('turnIndicator');
+        const gameCells = document.querySelectorAll('.game-cell');
+        const btnReset = document.getElementById('btnReset');
+        const btnLeave = document.getElementById('btnLeave');
+        
+        const connectionStatus = document.getElementById('connectionStatus');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        // Custom Notification (Toast) Function
+        function showNotification(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMessage.textContent = message;
+            if (isError) {
+                toastIcon.className = "fa-solid fa-triangle-exclamation text-rose-500";
+                toast.classList.add('border-rose-500/30', 'bg-rose-950/40');
+                toast.classList.remove('border-slate-700', 'bg-slate-800');
+            } else {
+                toastIcon.className = "fa-solid fa-circle-info text-teal-400";
+                toast.classList.add('border-slate-700', 'bg-slate-800');
+                toast.classList.remove('border-rose-500/30', 'bg-rose-950/40');
+            }
+
+            toast.classList.remove('opacity-0', 'translate-y-[-10px]', 'pointer-events-none');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-[-10px]', 'pointer-events-none');
+                toast.classList.remove('opacity-100', 'translate-y-0');
+            }, 3000);
+        }
+
+        // Initialize Anonymous Authentication (RULE 3 compliance)
+        async function initAuthentication() {
+            try {
+                let userCredential;
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    userCredential = await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    userCredential = await signInAnonymously(auth);
+                }
+                
+                currentUser = userCredential.user;
+                
+                // Update header network connection state
+                statusDot.className = "h-2.5 w-2.5 rounded-full bg-teal-500";
+                statusText.textContent = "Online";
+                
+                // Check if page load has an incoming room invite in the URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const queryRoom = urlParams.get('room');
+                if (queryRoom && queryRoom.trim().length === 5) {
+                    joinRoom(queryRoom.trim().toLowerCase());
+                }
+            } catch (error) {
+                console.error("Auth initialization failed:", error);
+                statusDot.className = "h-2.5 w-2.5 rounded-full bg-rose-500";
+                statusText.textContent = "Offline (Error)";
+                showNotification("Could not authenticate. Retrying...", true);
+            }
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+            }
+        });
+
+        // Trigger auth on script load
+        initAuthentication();
+
+        // Helper: Generate arbitrary short IDs
+        function generateRoomCode() {
+            return Math.random().toString(36).substring(2, 7).toLowerCase();
+        }
+
+        // Setup the exact Firestore Doc Path (RULE 1 Compliance)
+        function getRoomDocRef(roomId) {
+            return doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+        }
+
+        // Create Game Room
+        async function createRoom() {
+            if (!currentUser) {
+                showNotification("Connecting... please wait", true);
+                return;
+            }
+
+            const newRoomId = generateRoomCode();
+            const roomRef = getRoomDocRef(newRoomId);
+
+            const initialData = {
+                roomId: newRoomId,
+                playerX: currentUser.uid,
+                playerO: null,
+                board: Array(9).fill(""),
+                turn: "X",
+                status: "waiting", // waiting, playing, complete
+                winner: null,
+                winningCombo: null,
+                updatedAt: Date.now()
+            };
+
+            try {
+                await setDoc(roomRef, initialData);
+                joinRoom(newRoomId);
+            } catch (err) {
+                console.error("Failed to create room:", err);
+                showNotification("Failed to create lobby. Try again.", true);
+            }
+        }
+
+        // Join Existing Game Room
+        async function joinRoom(roomId) {
+            if (!currentUser) {
+                showNotification("Connecting... please wait", true);
+                return;
+            }
+
+            const cleanedRoomId = roomId.toLowerCase().trim();
+            const roomRef = getRoomDocRef(cleanedRoomId);
+
+            try {
+                const roomSnap = await getDoc(roomRef);
+                if (!roomSnap.exists()) {
+                    showNotification(`Room ${cleanedRoomId.toUpperCase()} not found!`, true);
+                    // Clear search params if joining from link failed
+                    window.history.pushState({}, '', window.location.pathname);
+                    return;
+                }
+
+                currentRoomId = cleanedRoomId;
+                const roomData = roomSnap.data();
+
+                // Determine local player's role (X, O, or Spectator)
+                if (roomData.playerX === currentUser.uid) {
+                    role = 'X';
+                } else if (roomData.playerO === currentUser.uid) {
+                    role = 'O';
+                } else if (!roomData.playerO) {
+                    // Spot O is open! Secure it.
+                    role = 'O';
+                    await updateDoc(roomRef, {
+                        playerO: currentUser.uid,
+                        status: 'playing',
+                        updatedAt: Date.now()
+                    });
+                } else {
+                    role = 'spectator';
+                }
+
+                // Switch UI Screens
+                lobbyScreen.classList.add('hidden');
+                gameScreen.classList.remove('hidden');
+
+                // Update URL parameter
+                const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?room=${currentRoomId}`;
+                window.history.pushState({ path: newUrl }, '', newUrl);
+
+                // Update Lobby / Board Details
+                displayRoomCode.textContent = currentRoomId;
+                inviteLink.value = newUrl;
+
+                // Subscribe to real-time sync
+                subscribeToRoom(currentRoomId);
+            } catch (err) {
+                console.error("Join room error:", err);
+                showNotification("Error entering room.", true);
+            }
+        }
+
+        // Subscribe to Realtime Updates
+        function subscribeToRoom(roomId) {
+            if (roomSubscription) roomSubscription(); // Unsubscribe existing logic
+
+            const roomRef = getRoomDocRef(roomId);
+
+            roomSubscription = onSnapshot(roomRef, (snapshot) => {
+                if (!snapshot.exists()) {
+                    showNotification("This room was deleted or closed.", true);
+                    leaveRoom();
+                    return;
+                }
+
+                const data = snapshot.data();
+                renderGame(data);
+            }, (error) => {
+                console.error("Firestore real-time sync failed:", error);
+                showNotification("Sync interrupted.", true);
+            });
+        }
+
+        // Game State Rendering
+        function renderGame(data) {
+            // Render Role Badge
+            if (role === 'X') {
+                userRoleDisplay.innerHTML = `<span class="text-teal-400 font-extrabold uppercase tracking-wide">Player X (You)</span>`;
+            } else if (role === 'O') {
+                userRoleDisplay.innerHTML = `<span class="text-rose-400 font-extrabold uppercase tracking-wide">Player O (You)</span>`;
+            } else {
+                userRoleDisplay.innerHTML = `<span class="text-amber-400 font-extrabold uppercase tracking-wide flex items-center gap-1"><i class="fa-solid fa-eye"></i> Spectator</span>`;
+            }
+
+            // Render Opponent Status Badge
+            if (data.status === 'waiting') {
+                opponentStatus.className = "text-xs px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-medium animate-pulse";
+                opponentStatus.textContent = "Waiting for Player 2..._";
+            } else {
+                opponentStatus.className = "text-xs px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-400 font-medium";
+                opponentStatus.textContent = "Match Active";
+            }
+
+            // Render Board Elements
+            data.board.forEach((val, idx) => {
+                const cell = gameCells[idx];
+                cell.textContent = val;
+                
+                // Styling based on value
+                if (val === 'X') {
+                    cell.className = "game-cell aspect-square rounded-xl bg-slate-900 border border-slate-800 text-4xl md:text-5xl font-black text-teal-400 neon-glow-x flex items-center justify-center disabled:cursor-not-allowed";
+                } else if (val === 'O') {
+                    cell.className = "game-cell aspect-square rounded-xl bg-slate-900 border border-slate-800 text-4xl md:text-5xl font-black text-rose-400 neon-glow-o flex items-center justify-center disabled:cursor-not-allowed";
+                } else {
+                    cell.className = "game-cell aspect-square rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-4xl md:text-5xl font-black text-slate-100 flex items-center justify-center transform hover:scale-[1.02] transition-all duration-150";
+                }
+
+                // If cell is occupied or game ended, disable
+                cell.disabled = (val !== '' || data.status !== 'playing' || role === 'spectator');
+            });
+
+            // Highlight Winning Combo if it exists
+            if (data.winningCombo) {
+                data.winningCombo.forEach(idx => {
+                    const cell = gameCells[idx];
+                    if (data.winner === 'X') {
+                        cell.classList.add('bg-teal-500/10', 'border-teal-400');
+                    } else if (data.winner === 'O') {
+                        cell.classList.add('bg-rose-500/10', 'border-rose-400');
+                    }
+                });
+            }
+
+            // Render Match Turn Details / End States
+            if (data.status === 'waiting') {
+                turnIndicator.textContent = "Invite a friend to play!";
+                turnIndicator.className = "text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 px-4 py-1.5 rounded-full";
+            } else if (data.status === 'playing') {
+                const isYourTurn = data.turn === role;
+                if (isYourTurn) {
+                    turnIndicator.textContent = "Your Turn";
+                    turnIndicator.className = "text-sm font-bold bg-teal-500 text-slate-950 px-5 py-1.5 rounded-full shadow-lg shadow-teal-500/10 animate-bounce";
+                } else {
+                    turnIndicator.textContent = `Player ${data.turn}'s Turn`;
+                    turnIndicator.className = "text-sm font-semibold bg-slate-900 text-slate-400 border border-slate-800 px-4 py-1.5 rounded-full";
+                }
+            } else if (data.status === 'complete') {
+                if (data.winner === 'draw') {
+                    turnIndicator.textContent = "It's a Draw!";
+                    turnIndicator.className = "text-sm font-bold bg-amber-500 text-slate-950 px-5 py-1.5 rounded-full";
+                } else {
+                    const isWinner = data.winner === role;
+                    if (isWinner) {
+                        turnIndicator.textContent = "🏆 Victory!";
+                        turnIndicator.className = "text-sm font-bold bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 px-6 py-1.5 rounded-full shadow-lg shadow-teal-500/20";
+                    } else if (role === 'spectator') {
+                        turnIndicator.textContent = `Player ${data.winner} Won!`;
+                        turnIndicator.className = "text-sm font-bold bg-slate-800 text-slate-200 px-5 py-1.5 rounded-full";
+                    } else {
+                        turnIndicator.textContent = "Defeat!";
+                        turnIndicator.className = "text-sm font-bold bg-rose-600 text-white px-5 py-1.5 rounded-full";
+                    }
+                }
+            }
+        }
+
+        // Game Play Handling (User Action)
+        async function makeMove(index) {
+            if (!currentRoomId || !role || role === 'spectator') return;
+
+            const roomRef = getRoomDocRef(currentRoomId);
+            
+            try {
+                // Fetch fresh copy to avoid race conditions
+                const snap = await getDoc(roomRef);
+                if (!snap.exists()) return;
+
+                const data = snap.data();
+
+                // Validation checks
+                if (data.status !== 'playing') return;
+                if (data.turn !== role) return; // Not your turn
+                if (data.board[index] !== '') return; // Block occupied
+
+                // Update Board
+                const updatedBoard = [...data.board];
+                updatedBoard[index] = role;
+
+                // Win Conditions Setup
+                const winningCombos = [
+                    [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+                    [0, 3, 6], [1, 4, 7], [2, 5, 8], // Cols
+                    [0, 4, 8], [2, 4, 6]             // Diagonals
+                ];
+
+                let winner = null;
+                let winningCombo = null;
+                let status = 'playing';
+
+                // Check for a Win
+                for (const combo of winningCombos) {
+                    const [a, b, c] = combo;
+                    if (updatedBoard[a] && updatedBoard[a] === updatedBoard[b] && updatedBoard[a] === updatedBoard[c]) {
+                        winner = role;
+                        winningCombo = combo;
+                        status = 'complete';
+                        break;
+                    }
+                }
+
+                // Check for a Draw (No empty slots remaining)
+                if (!winner && !updatedBoard.includes('')) {
+                    winner = 'draw';
+                    status = 'complete';
+                }
+
+                // Push updates to Firestore
+                const nextTurn = role === 'X' ? 'O' : 'X';
+                await updateDoc(roomRef, {
+                    board: updatedBoard,
+                    turn: nextTurn,
+                    status: status,
+                    winner: winner,
+                    winningCombo: winningCombo,
+                    updatedAt: Date.now()
+                });
+
+            } catch (err) {
+                console.error("Error making move:", err);
+                showNotification("Could not make move. Connection slow?", true);
+            }
+        }
+
+        // Reset Match Logic
+        async function resetMatch() {
+            if (!currentRoomId) return;
+            const roomRef = getRoomDocRef(currentRoomId);
+
+            try {
+                const snap = await getDoc(roomRef);
+                if (!snap.exists()) return;
+                const data = snap.data();
+
+                // Maintain playing role arrangement but reset state logic
+                await updateDoc(roomRef, {
+                    board: Array(9).fill(""),
+                    turn: "X",
+                    status: data.playerO ? "playing" : "waiting",
+                    winner: null,
+                    winningCombo: null,
+                    updatedAt: Date.now()
+                });
+                showNotification("Game reset successfully!");
+            } catch (err) {
+                console.error("Reset error:", err);
+                showNotification("Failed to reset board.", true);
+            }
+        }
+
+        // Leave lobby & return to landing lobby screen
+        function leaveRoom() {
+            if (roomSubscription) {
+                roomSubscription(); // Close stream listener
+                roomSubscription = null;
+            }
+
+            currentRoomId = null;
+            role = null;
+
+            // Clear URL Param
+            window.history.pushState({}, '', window.location.pathname);
+
+            // Re-show Lobby Screen
+            gameScreen.classList.add('hidden');
+            lobbyScreen.classList.remove('hidden');
+            joinRoomCode.value = '';
+        }
+
+        // Clipboard copying logic with fallback support (execCommand inside iframes)
+        function copyInviteLink() {
+            inviteLink.select();
+            inviteLink.setSelectionRange(0, 99999); // Mobile compatibility
+
+            try {
+                // Primary modern method
+                navigator.clipboard.writeText(inviteLink.value)
+                    .then(() => showNotification("Link copied to clipboard!"))
+                    .catch(() => {
+                        // Fallback fallback inside restricted browsers
+                        document.execCommand('copy');
+                        showNotification("Link copied successfully!");
+                    });
+            } catch (err) {
+                // Secondary standard fallback
+                document.execCommand('copy');
+                showNotification("Link copied successfully!");
+            }
+        }
+
+        // Button Click Event Listeners
+        btnCreateGame.addEventListener('click', createRoom);
+        
+        btnJoinGame.addEventListener('click', () => {
+            const entered = joinRoomCode.value.trim();
+            if (entered.length === 5) {
+                joinRoom(entered);
+            } else {
+                showNotification("Please enter a valid 5-character code", true);
+            }
+        });
+
+        // Trigger input joins on enter key
+        joinRoomCode.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                btnJoinGame.click();
+            }
+        });
+
+        // Cell Click Assignments
+        gameCells.forEach(cell => {
+            cell.addEventListener('click', () => {
+                const idx = parseInt(cell.getAttribute('data-index'));
+                makeMove(idx);
+            });
+        });
+
+        // Copy button trigger
+        btnCopyLink.addEventListener('click', copyInviteLink);
+
+        // Options Actions
+        btnReset.addEventListener('click', resetMatch);
+        btnLeave.addEventListener('click', leaveRoom);
+
+    </script>
+</body>
+</html>
